@@ -9,4 +9,4 @@ RUN uv pip install -r requirements.txt --system --no-cache
 
 COPY src /app/src
 
-EXPOSE 80 5003
+EXPOSE 80 5005
