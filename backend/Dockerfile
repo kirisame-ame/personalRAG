@@ -1,12 +1,16 @@
-FROM python:3.12-alpine3.22
+FROM python:3.13-slim-bookworm
 WORKDIR /app
 
-RUN pip install uv --no-cache
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-COPY requirements.txt requirements.txt
+RUN pip install --no-cache-dir uv
 
-RUN uv pip install -r requirements.txt --system --no-cache
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked
 
-COPY src /app/src
+COPY . .
 
-EXPOSE 80 5005
+EXPOSE 80
+
+CMD ["/app/.venv/bin/fastapi", "run", "app/main.py", "--port", "80", "--host", "0.0.0.0"]
