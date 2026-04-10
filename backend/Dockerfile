@@ -11,6 +11,6 @@ RUN uv sync --locked
 
 COPY . .
 
-EXPOSE 80
+EXPOSE 80 5200
 
-CMD ["/app/.venv/bin/fastapi", "run", "main.py", "--port", "80", "--host", "0.0.0.0"]
+CMD ["/app/.venv/bin/fastapi", "run", "main.py", "--port", "5200", "--host", "0.0.0.0"]
