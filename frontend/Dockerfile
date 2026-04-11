@@ -1,10 +1,21 @@
-FROM node:25-alpine3.22
+FROM node:25-alpine3.22 as builder
 
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 
-EXPOSE 5173
+RUN npm run build
 
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+FROM nginx:1.27-alpine AS production
+
+COPY --from=builder /app/dist /.static
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 5300
+
+CMD ["nginx", "-g", "daemon off;"]
+
+
+

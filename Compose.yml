@@ -4,14 +4,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:80"
+      - "5200:5200"
     command:
       [
         "/app/.venv/bin/fastapi",
         "run",
         "main.py",
         "--port",
-        "80",
+        "5200",
         "--host",
         "0.0.0.0",
       ]
@@ -21,7 +21,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+      - "5300:5300"
     depends_on:
       - backend
