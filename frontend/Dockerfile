@@ -13,7 +13,7 @@ COPY --from=builder /app/dist /.static
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 5300
+EXPOSE 5201
 
 CMD ["nginx", "-g", "daemon off;"]
 
