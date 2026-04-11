@@ -11,7 +11,7 @@ FROM nginx:1.27-alpine AS production
 
 COPY --from=builder /app/dist /.static
 
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 5300
 
