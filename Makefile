@@ -8,7 +8,8 @@ dev-build:
 
 dev-down:
 	docker compose --profile dev -f compose.yml -f compose.dev.yml down
-
+dev-down-vol:
+	docker compose --profile dev -f compose.yml -f compose.dev.yml down -v
 prod:
 	docker compose -f compose.yml up -d --build
 

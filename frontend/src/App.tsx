@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "./App.css";
 
 type Message = {
@@ -77,7 +78,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6">
         <header className="mb-8">
           <h1 className="mt-2 text-3xl font-semibold text-slate-900 sm:text-4xl">
             Kirisame's Chatbot
@@ -100,7 +101,7 @@ function App() {
                   }`}
                 >
                   {message.role === "assistant" ? (
-                    <ReactMarkdown className="markdown">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {message.content}
                     </ReactMarkdown>
                   ) : (
