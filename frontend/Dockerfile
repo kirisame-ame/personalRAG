@@ -1,6 +1,8 @@
 FROM node:25-alpine3.22 as builder
 
 WORKDIR /app
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 COPY package*.json ./
 RUN npm ci
 COPY . .
