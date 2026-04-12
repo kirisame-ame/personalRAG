@@ -6,21 +6,13 @@ services:
     ports:
       - "5200:5200"
     command:
-      [
-        "/app/.venv/bin/fastapi",
-        "run",
-        "main.py",
-        "--port",
-        "5200",
-        "--host",
-        "0.0.0.0",
-      ]
+      ["fastapi", "run", "main.py", "--port", "5200", "--host", "0.0.0.0"]
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5300"
+      - "5300:5300"
     depends_on:
       - backend

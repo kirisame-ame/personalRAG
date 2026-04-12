@@ -1,25 +1,20 @@
 services:
   backend:
+    profiles:
+      - dev
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
     command:
-      [
-        "/app/.venv/bin/fastapi",
-        "dev",
-        "main.py",
-        "--port",
-        "5200",
-        "--host",
-        "0.0.0.0",
-      ]
+      ["fastapi", "dev", "main.py", "--port", "5200", "--host", "0.0.0.0"]
     volumes:
       - ./backend:/app
-      - backend-venv:/app/.venv
     environment:
       - WATCHFILES_FORCE_POLLING=true
 
   frontend:
+    profiles:
+      - dev
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
@@ -30,5 +25,4 @@ services:
       - CHOKIDAR_USEPOLLING=true
 
 volumes:
-  backend-venv:
   frontend-node-modules:
