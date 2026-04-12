@@ -5,6 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "bs4>=0.0.2",
     "chromadb>=1.4.0",
     "fastapi[standard]>=0.128.0",
+    "langchain>=1.2.15",
+    "langchain-chroma>=1.1.0",
+    "langchain-community>=0.4.1",
+    "langchain-google-genai>=4.2.1",
+    "langchain-openrouter>=0.2.1",
+    "langchain-text-splitters>=1.1.1",
+    "load-dotenv>=0.1.0",
+    "pypdf>=6.10.0",
+    "uvicorn[standard]>=0.40.0",
 ]
