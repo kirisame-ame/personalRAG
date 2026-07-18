@@ -1,11 +1,19 @@
 @import "tailwindcss";
 
+@utility no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and Opera */
+  }
+}
 :root {
   font-family: "Space Grotesk", sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color: #0f172a;
-  background-color: #f7f4ee;
+  background-color: #eeece6;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,6 +27,32 @@ pre {
 
 * {
   box-sizing: border-box;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #aaa79e transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 0;
+  background: #aaa79e;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #77756f;
+  background-clip: content-box;
 }
 
 body {

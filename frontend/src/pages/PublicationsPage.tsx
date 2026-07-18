@@ -1,0 +1,10 @@
+export function PublicationsPage() {
+  return (
+    <section className="max-w-2xl py-12 sm:py-20">
+      <p className="mb-3 font-mono text-[11px] tracking-[.14em] text-[#ed542c]">WRITING / PUBLIC RECORD</p>
+      <h1 className="text-5xl font-medium leading-none tracking-[-.06em] sm:text-7xl">Notes from <em className="font-serif font-normal">the field.</em></h1>
+      <p className="mt-7 max-w-md text-[15px] leading-[1.65] text-[#68665f]">This section is being assembled. The archive will grow here as the work finds its shape.</p>
+      <div className="mt-16 flex justify-between border-y border-[#aaa79e] py-4 font-mono text-[10px]"><span>INDEX / 001</span><span className="text-[#ed542c]">IN PROGRESS</span></div>
+    </section>
+  );
+}

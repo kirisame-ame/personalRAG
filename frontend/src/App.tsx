@@ -1,146 +1,111 @@
-import { useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import "./App.css";
+import { useState } from "react";
+import { ChatPage } from "./pages/ChatPage";
+import { PapersPage } from "./pages/PapersPage";
+import { PublicationsPage } from "./pages/PublicationsPage";
 
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
+export type Page = "chat" | "papers" | "publications";
 
-type QueryResponse = {
-  answer: string;
-};
-
-const isQueryResponse = (value: unknown): value is QueryResponse => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  return typeof (value as { answer?: unknown }).answer === "string";
-};
+const pages: { id: Page; label: string; icon: string }[] = [
+  { id: "chat", label: "Chat", icon: "↗" },
+  { id: "papers", label: "Papers", icon: "◫" },
+  { id: "publications", label: "Publications", icon: "↗" },
+];
 
 function App() {
-  const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Ask a question about me!",
-    },
-  ]);
+  const [page, setPage] = useState<Page>("chat");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pageNumber = String(
+    pages.findIndex((item) => item.id === page) + 1,
+  ).padStart(3, "0");
 
-  const canSend = useMemo(
-    () => query.trim().length > 0 && !isLoading,
-    [query, isLoading],
-  );
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "/api";
-  const apiEndpoint = apiBaseUrl.endsWith("/")
-    ? `${apiBaseUrl}query`
-    : `${apiBaseUrl}/query`;
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = query.trim();
-    if (!trimmed || isLoading) {
-      return;
-    }
-    setIsLoading(true);
-    setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
-    setQuery("");
-    const payload = { query: trimmed };
-    let reply = "Error getting response";
-
-    try {
-      const response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const message = await response.text();
-        reply = message || `Request failed (${response.status})`;
-      } else {
-        const result: unknown = await response.json();
-        reply = isQueryResponse(result) ? result.answer : "Unexpected response";
-      }
-    } catch (error) {
-      reply =
-        error instanceof Error ? error.message : "Network error, try again.";
-    } finally {
-      setIsLoading(false);
-    }
-
-    setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+  const handlePageChange = (nextPage: Page) => {
+    setPage(nextPage);
+    setMobileMenuOpen(false);
   };
 
   return (
-    <div className="app-shell">
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6">
-        <header className="mb-8">
-          <h1 className="mt-2 text-3xl font-semibold text-slate-900 sm:text-4xl">
-            Kirisame's Chatbot
-          </h1>
-          <p className="mt-3 text-sm text-slate-600 sm:text-base">
-            RAG chatbot from my files
-          </p>
-        </header>
-
-        <section className="flex-1 overflow-hidden rounded-2xl border border-slate-200/70 bg-white/75 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.6)] backdrop-blur">
-          <div className="h-full max-h-[55vh] overflow-y-auto px-5 py-6 sm:px-8">
-            <div className="space-y-4">
-              {messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={`message-bubble ${
-                    message.role === "user"
-                      ? "message-user"
-                      : "message-assistant"
-                  }`}
-                >
-                  {message.role === "assistant" ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {message.content}
-                    </ReactMarkdown>
-                  ) : (
-                    <p className="text-sm leading-relaxed sm:text-base">
-                      {message.content}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <form
-          onSubmit={handleSubmit}
-          className="mt-6 flex flex-col gap-3 sm:flex-row"
-        >
-          <div className="flex-1">
-            <label className="sr-only" htmlFor="query">
-              Enter your query
-            </label>
-            <textarea
-              id="query"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Type your question here..."
-              rows={2}
-              className="w-full resize-none rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-900 shadow-sm transition outline-none focus:border-slate-300 focus:ring-2 focus:ring-amber-200 sm:text-base"
-            />
-          </div>
+    <div className="relative flex h-svh flex-col overflow-hidden bg-[#eeece6] text-[#151515] before:pointer-events-none before:fixed before:inset-0 before:[background-image:linear-gradient(rgba(20,20,20,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(20,20,20,.045)_1px,transparent_1px)] before:[background-size:64px_64px] before:opacity-40">
+      <header className="relative z-10 shrink-0 border-b border-[#aaa79e] bg-[rgba(238,236,230,.88)]">
+        <div className="relative mx-auto flex min-h-16 w-full items-center justify-between px-4 sm:max-w-[1440px] sm:px-6">
           <button
-            type="submit"
-            disabled={!canSend}
-            className="h-18 rounded-2xl bg-slate-900 px-6 text-sm font-medium text-white shadow-lg shadow-slate-900/25 transition enabled:hover:-translate-y-0.5 enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 sm:text-base"
+            className="cursor-pointer border-0 bg-transparent p-0 font-mono text-xs font-semibold tracking-[.08em]"
+            onClick={() => handlePageChange("chat")}
+            aria-label="Go to home"
           >
-            {isLoading ? "Sending..." : "Send"}
+            WILLIAM ANDRIAN<span className="mx-[3px] text-[#ed542c]">/</span>
+            ARCHIVE
           </button>
-        </form>
-      </div>
+          <nav
+            className="hidden gap-5 sm:flex sm:gap-7"
+            aria-label="Primary navigation"
+          >
+            {pages.map((item) => (
+              <button
+                key={item.id}
+                className={`cursor-pointer border-0 bg-transparent font-mono text-xs ${page === item.id ? "text-[#151515]" : "text-[#55534e]"}`}
+                onClick={() => handlePageChange(item.id)}
+              >
+                <span className="inline-flex items-baseline underline decoration-1 underline-offset-4">
+                  {item.label}
+                  <span className="ml-1 text-[#ed542c]">{item.icon}</span>
+                </span>
+              </button>
+            ))}
+          </nav>
+          <button
+            type="button"
+            className="flex h-9 w-9 cursor-pointer flex-col items-center justify-center gap-1 border-0 bg-transparent sm:hidden"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-label="Toggle navigation"
+            aria-expanded={mobileMenuOpen}
+          >
+            <span className="block h-px w-5 bg-[#151515]" />
+            <span className="block h-px w-5 bg-[#151515]" />
+            <span className="block h-px w-5 bg-[#151515]" />
+          </button>
+          {mobileMenuOpen && (
+            <nav
+              className="absolute top-full right-0 flex min-w-44 flex-col border border-[#aaa79e] bg-[#eeece6] shadow-[0_12px_24px_rgba(21,21,21,.08)] sm:hidden"
+              aria-label="Mobile navigation"
+            >
+              {pages.map((item) => (
+                <button
+                  key={item.id}
+                  className={`flex cursor-pointer items-center justify-between border-0 border-b border-[#c3c0b7] bg-transparent px-4 py-3 text-left font-mono text-xs last:border-b-0 ${page === item.id ? "text-[#151515]" : "text-[#55534e]"}`}
+                  onClick={() => handlePageChange(item.id)}
+                >
+                  {item.label}
+                  <span className="text-[#ed542c]">{item.icon}</span>
+                </button>
+              ))}
+            </nav>
+          )}
+          <div className="hidden font-mono text-[10px] tracking-[.04em] text-[#77756f] sm:block">
+            <i className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[#ed542c]" />
+            ONLINE / PERSONAL RAG
+          </div>
+        </div>
+      </header>
+
+      <main className="flex min-h-0 flex-1 flex-col pt-3 sm:pt-4">
+        <div
+          className={`mx-auto flex min-h-0 w-full flex-1 flex-col px-4 sm:px-6 ${page === "chat" ? "max-w-[1440px]" : "max-w-[1040px]"}`}
+        >
+          <div className="shrink-0 border-b border-[#bbb8ae] pb-3 font-mono text-[10px] tracking-[.12em] text-[#77756f]">
+            <span className="text-[#ed542c]">{pageNumber}</span> /{" "}
+            {page.toUpperCase()}
+          </div>
+          {page === "chat" && <ChatPage />}
+          {page === "papers" && <PapersPage />}
+          {page === "publications" && <PublicationsPage />}
+        </div>
+      </main>
+
+      <footer className="relative z-10 grid shrink-0 grid-cols-3 border-t border-[#aaa79e] px-5 py-3 font-mono text-[8px] tracking-[.06em] text-[#77756f] sm:px-[5vw] sm:text-[10px]">
+        <span>© 2026 William Andrian</span>
+        <span className="hidden text-center sm:inline">Archive</span>
+        <span className="text-right">↑</span>
+      </footer>
     </div>
   );
 }

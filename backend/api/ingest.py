@@ -13,7 +13,7 @@ from controllers.vector_store import (
     list_sources,
 )
 
-router = APIRouter(prefix="/ingest", tags=["ingest"])
+router = APIRouter( tags=["ingest"])
 
 
 class IngestResponse(BaseModel):
