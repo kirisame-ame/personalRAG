@@ -16,5 +16,6 @@ dependencies = [
     "langchain-text-splitters>=1.1.1",
     "load-dotenv>=0.1.0",
     "pypdf>=6.10.0",
+    "slowapi>=0.1.10",
     "uvicorn[standard]>=0.40.0",
 ]

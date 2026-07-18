@@ -2,11 +2,16 @@ import os
 from typing import Union
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from limits.errors import StorageError
+from slowapi.errors import RateLimitExceeded
+from slowapi.extension import _rate_limit_exceeded_handler
 
 from api.ingest import router as ingest_router
 from api.query import router as query_router
+from api.ratelimit import limiter
 from controllers.vector_store import ensure_indexed
 
 
@@ -24,6 +29,18 @@ def _get_cors_origins() -> list[str]:
 
 
 app = FastAPI(lifespan=warm_vector_store)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def rate_limit_storage_error(request: Request, exc: StorageError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Rate-limit service is temporarily unavailable"},
+    )
+
+
+app.add_exception_handler(StorageError, rate_limit_storage_error)
 cors_origins = _get_cors_origins()
 allow_credentials = "*" not in cors_origins
 app.add_middleware(
@@ -33,8 +50,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(ingest_router)
-app.include_router(query_router)
+app.include_router(ingest_router, prefix="/ingest")
+app.include_router(query_router, prefix="/query")
 
 
 @app.get("/")

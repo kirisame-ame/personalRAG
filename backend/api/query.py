@@ -1,11 +1,12 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from api.deps import get_agent
+from api.ratelimit import QUERY_RATE_LIMIT, limiter
 
-router = APIRouter(prefix="/query", tags=["query"])
+router = APIRouter(tags=["query"])
 
 
 class QueryRequest(BaseModel):
@@ -31,7 +32,8 @@ def _extract_answer(result: Any) -> str:
 
 
 @router.post("", response_model=QueryResponse)
-def run_query(payload: QueryRequest) -> QueryResponse:
+@limiter.limit(QUERY_RATE_LIMIT)
+def run_query(request: Request, payload: QueryRequest) -> QueryResponse:
     agent = get_agent()
     result = agent.invoke({"messages": [{"role": "user", "content": payload.query}]})
     return QueryResponse(answer=_extract_answer(result))
