@@ -26,8 +26,10 @@ SYSTEM_PROMPT = (
 def get_model() -> ChatOpenRouter:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if api_key:
-        return ChatOpenRouter(model="openai/gpt-oss-120b:free", api_key=api_key)
-    return ChatOpenRouter(model="openai/gpt-oss-120b:free")
+        return ChatOpenRouter(
+            model="nvidia/nemotron-3-ultra-550b-a55b:free", api_key=api_key
+        )
+    return ChatOpenRouter(model="nvidia/nemotron-3-ultra-550b-a55b:free")
 
 
 @lru_cache(maxsize=1)
