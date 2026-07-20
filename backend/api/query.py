@@ -1,39 +1,62 @@
-from typing import Any
+from collections.abc import Iterator
 
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.deps import get_agent
 from api.ratelimit import QUERY_RATE_LIMIT, limiter
 
 router = APIRouter(tags=["query"])
+STREAM_ERROR_PREFIX = "__RAG_STREAM_ERROR__:"
+STREAM_DONE_MARKER = "__RAG_STREAM_DONE__"
 
 
 class QueryRequest(BaseModel):
     query: str
 
 
-class QueryResponse(BaseModel):
-    answer: str
+def _text_from_chunk(chunk) -> str:
+    content = getattr(chunk, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
 
 
-def _extract_answer(result: Any) -> str:
-    if isinstance(result, dict):
-        messages = result.get("messages")
-        if messages:
-            last = messages[-1]
-            if isinstance(last, dict):
-                return str(last.get("content", ""))
-            return str(getattr(last, "content", last))
-        output = result.get("output")
-        if output is not None:
-            return str(output)
-    return str(result)
+def stream_answer(query: str) -> Iterator[str]:
+    try:
+        agent = get_agent()
+        stream = agent.stream(
+            {"messages": [{"role": "user", "content": query}]},
+            stream_mode="messages",
+            version="v2",
+        )
+        for event in stream:
+            if event["type"] != "messages":
+                continue
+            token, metadata = event["data"]
+            if metadata.get("langgraph_node") != "model":
+                continue
+            text = _text_from_chunk(token)
+            if text:
+                yield text
+        yield STREAM_DONE_MARKER
+    except Exception as error:
+        print(f"RAG streaming error: {error}")
+        yield f"{STREAM_ERROR_PREFIX}The model is currently busy. Please try again in a moment."
 
 
-@router.post("", response_model=QueryResponse)
+@router.post("")
 @limiter.limit(QUERY_RATE_LIMIT)
-def run_query(request: Request, payload: QueryRequest) -> QueryResponse:
-    agent = get_agent()
-    result = agent.invoke({"messages": [{"role": "user", "content": payload.query}]})
-    return QueryResponse(answer=_extract_answer(result))
+def run_query(request: Request, payload: QueryRequest) -> StreamingResponse:
+    return StreamingResponse(
+        stream_answer(payload.query),
+        media_type="text/plain; charset=utf-8",
+        headers={"Cache-Control": "no-cache"},
+    )

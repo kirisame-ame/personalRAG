@@ -1,23 +1,52 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Modal } from "../components/Modal";
 
 type Message = { role: "user" | "assistant"; content: string };
-type QueryResponse = { answer: string };
 
-const isQueryResponse = (value: unknown): value is QueryResponse =>
-  Boolean(
-    value &&
-    typeof value === "object" &&
-    typeof (value as QueryResponse).answer === "string",
-  );
+const initialMessages: Message[] = [
+  { role: "assistant", content: "Ask a question about me!" },
+];
+const chatStorageKey = "personal-rag-chat-messages";
 
 export function ChatPage() {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Ask a question about me!" },
-  ]);
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = localStorage.getItem(chatStorageKey);
+    if (!saved) return initialMessages;
+
+    try {
+      const parsed: unknown = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return initialMessages;
+
+      const validMessages = parsed.filter((message): message is Message =>
+        Boolean(
+          message &&
+          typeof message === "object" &&
+          ((message as Message).role === "user" ||
+            (message as Message).role === "assistant") &&
+          typeof (message as Message).content === "string",
+        ),
+      );
+
+      return validMessages.length > 0 ? validMessages : initialMessages;
+    } catch {
+      return initialMessages;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(chatStorageKey, JSON.stringify(messages));
+  }, [messages]);
+
+  const clearChat = () => {
+    localStorage.removeItem(chatStorageKey);
+    setMessages(initialMessages);
+    setShowClearConfirmation(false);
+  };
   const canSend = useMemo(
     () => query.trim().length > 0 && !isLoading,
     [query, isLoading],
@@ -30,29 +59,104 @@ export function ChatPage() {
     const trimmed = query.trim();
     if (!trimmed || isLoading) return;
     setIsLoading(true);
-    setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: trimmed },
+      { role: "assistant", content: "" },
+    ]);
     setQuery("");
-    let reply = "Error getting response";
     try {
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: trimmed }),
       });
-      const result: unknown = response.ok
-        ? await response.json()
-        : await response.text();
-      reply =
-        response.ok && isQueryResponse(result)
-          ? result.answer
-          : String(result || `Request failed (${response.status})`);
+
+      if (!response.ok) {
+        throw new Error(
+          (await response.text()) || `Request failed (${response.status})`,
+        );
+      }
+
+      if (!response.body) {
+        throw new Error("The server did not return a streaming response.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let streamCompleted = false;
+      let streamFailed = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        let chunk = decoder.decode(value, { stream: true });
+        if (!chunk) continue;
+
+        const errorMarker = "__RAG_STREAM_ERROR__:";
+        const doneMarker = "__RAG_STREAM_DONE__";
+        const errorIndex = chunk.indexOf(errorMarker);
+        const doneIndex = chunk.indexOf(doneMarker);
+
+        if (errorIndex !== -1) {
+          streamFailed = true;
+          chunk = "The model is currently busy. Please try again in a moment.";
+          await reader.cancel();
+        } else if (doneIndex !== -1) {
+          streamCompleted = true;
+          chunk = chunk.slice(0, doneIndex);
+        }
+
+        if (chunk) {
+          setMessages((prev) => {
+            const next = [...prev];
+            const lastIndex = next.length - 1;
+            next[lastIndex] = {
+              ...next[lastIndex],
+              content: streamFailed ? chunk : next[lastIndex].content + chunk,
+            };
+            return next;
+          });
+        }
+
+        if (streamFailed || streamCompleted) break;
+      }
+
+      const finalChunk =
+        streamCompleted || streamFailed ? "" : decoder.decode();
+      if (finalChunk) {
+        setMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          next[lastIndex] = {
+            ...next[lastIndex],
+            content: next[lastIndex].content + finalChunk,
+          };
+          return next;
+        });
+      }
+
+      if (!streamCompleted && !streamFailed) {
+        throw new Error(
+          "The response stream ended unexpectedly. Please try again.",
+        );
+      }
     } catch (error) {
-      reply =
+      const message =
         error instanceof Error ? error.message : "Network error, try again.";
+      setMessages((prev) => {
+        const next = [...prev];
+        const lastIndex = next.length - 1;
+        next[lastIndex] = {
+          ...next[lastIndex],
+          content: message,
+        };
+        return next;
+      });
     } finally {
       setIsLoading(false);
     }
-    setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
   };
 
   const handleQueryKeyDown = (
@@ -66,26 +170,47 @@ export function ChatPage() {
 
   return (
     <section
-      className="my-3 flex min-h-0 flex-1 flex-col border border-[#aaa79e] bg-[rgba(246,244,239,.7)]"
+      className="relative my-3 flex min-h-0 flex-1 flex-col border border-[#aaa79e] bg-[rgba(246,244,239,.7)]"
       aria-label="Chat archive"
     >
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#c3c0b7] px-4 font-mono text-[10px] tracking-[.08em] text-[#77756f]">
+      <div className="flex h-9 items-center justify-between border-b border-[#c3c0b7] px-4 font-mono text-[10px] tracking-[.08em] text-[#77756f]">
         <span>LIVE QUERY</span>
-        <span>{messages.length - 1} EXCHANGES</span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowClearConfirmation(true)}
+            disabled={isLoading}
+            className="cursor-pointer border-0 bg-transparent p-0 font-mono text-[10px] tracking-[.08em] text-[#ed542c] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            CLEAR CHAT
+          </button>
+          <span>{Math.floor((messages.length - 1) / 2)} EXCHANGES</span>
+        </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+      <Modal
+        open={showClearConfirmation}
+        title="CLEAR CHAT?"
+        confirmLabel="CLEAR CHAT"
+        onConfirm={clearChat}
+        onCancel={() => setShowClearConfirmation(false)}
+      >
+        <p className="m-0">
+          This will remove your saved conversation from this browser.
+        </p>
+      </Modal>
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8">
         {messages.map((message, index) => (
           <div
             key={`${message.role}-${index}`}
-            className="mb-6 flex gap-3 sm:gap-[18px]"
+            className="mb-6 flex min-w-0 flex-col gap-1 sm:flex-row sm:gap-[18px]"
           >
             <span
-              className={`shrink-0 basis-[62px] pt-1 font-mono text-[10px] ${message.role === "assistant" ? "text-[#ed542c]" : "text-[#1c59fd]"} sm:basis-[74px] sm:text-[12px]`}
+              className={`shrink-0 font-mono text-[10px] ${message.role === "assistant" ? "text-[#ed542c]" : "text-[#1c59fd]"} sm:basis-[74px] sm:pt-1 sm:text-[12px]`}
             >
               {message.role === "assistant" ? "AI / SYSTEM" : "YOU / NOW"}
             </span>
             <div
-              className={`max-w-3xl text-[15px] leading-[1.6] ${message.role === "user" ? "font-mono text-[13px]" : ""}`}
+              className={`max-w-full min-w-0 text-[15px] leading-[1.6] break-words ${message.role === "user" ? "font-mono text-[13px]" : ""}`}
             >
               {message.role === "assistant" ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
