@@ -1,4 +1,22 @@
 services:
+  chromadb:
+    profiles:
+      - dev
+    image: chromadb/chroma:1.0.15
+    restart: unless-stopped
+    volumes:
+      - chroma-data:/data
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   redis:
     profiles:
       - dev
@@ -14,13 +32,19 @@ services:
     command:
       ["fastapi", "dev", "main.py", "--port", "5200", "--host", "0.0.0.0"]
     depends_on:
-      - redis
+      chromadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - ./backend:/app
     environment:
       - WATCHFILES_FORCE_POLLING=true
       - RATELIMIT_STORAGE_URI=redis://redis:6379/0
       - QUERY_RATE_LIMIT=5/minute
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - CHROMA_SSL=false
 
   frontend:
     profiles:
@@ -35,4 +59,5 @@ services:
       - CHOKIDAR_USEPOLLING=true
 
 volumes:
+  chroma-data:
   frontend-node-modules:

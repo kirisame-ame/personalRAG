@@ -1,4 +1,5 @@
 import hashlib
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Iterable, List
@@ -8,6 +9,7 @@ from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+import chromadb
 
 try:
     from config import CHROMA_DIR, COLLECTION_NAME, DATA_DIR
@@ -24,6 +26,20 @@ def _get_embeddings() -> GoogleGenerativeAIEmbeddings:
 
 @lru_cache(maxsize=1)
 def get_vector_store() -> Chroma:
+    chroma_host = os.getenv("CHROMA_HOST", "").strip()
+    if chroma_host:
+        client = chromadb.HttpClient(
+            host=chroma_host,
+            port=int(os.getenv("CHROMA_PORT", "8000")),
+            ssl=os.getenv("CHROMA_SSL", "false").lower() == "true",
+        )
+        client.heartbeat()
+        return Chroma(
+            client=client,
+            collection_name=COLLECTION_NAME,
+            embedding_function=_get_embeddings(),
+        )
+
     return Chroma(
         collection_name=COLLECTION_NAME,
         persist_directory=CHROMA_DIR,

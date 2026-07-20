@@ -1,4 +1,20 @@
 services:
+  chromadb:
+    image: chromadb/chroma:1.0.15
+    restart: unless-stopped
+    volumes:
+      - chroma-data:/data
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   backend:
     build:
       context: ./backend
@@ -7,6 +23,13 @@ services:
       - "5200:5200"
     command:
       ["fastapi", "run", "main.py", "--port", "5200", "--host", "0.0.0.0"]
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    environment:
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+      CHROMA_SSL: "false"
 
   frontend:
     build:
@@ -16,3 +39,6 @@ services:
       - "5300:5300"
     depends_on:
       - backend
+
+volumes:
+  chroma-data:

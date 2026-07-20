@@ -62,7 +62,7 @@ export function ChatPage() {
     setMessages((prev) => [
       ...prev,
       { role: "user", content: trimmed },
-      { role: "assistant", content: "" },
+      { role: "assistant", content: "Thinking..." },
     ]);
     setQuery("");
     try {
@@ -86,6 +86,7 @@ export function ChatPage() {
       const decoder = new TextDecoder();
       let streamCompleted = false;
       let streamFailed = false;
+      let hasReceivedContent = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -114,10 +115,15 @@ export function ChatPage() {
             const lastIndex = next.length - 1;
             next[lastIndex] = {
               ...next[lastIndex],
-              content: streamFailed ? chunk : next[lastIndex].content + chunk,
+              content: streamFailed
+                ? chunk
+                : hasReceivedContent && next[lastIndex].content !== "Thinking..."
+                  ? next[lastIndex].content + chunk
+                  : chunk,
             };
             return next;
           });
+          if (!streamFailed) hasReceivedContent = true;
         }
 
         if (streamFailed || streamCompleted) break;
@@ -131,7 +137,9 @@ export function ChatPage() {
           const lastIndex = next.length - 1;
           next[lastIndex] = {
             ...next[lastIndex],
-            content: next[lastIndex].content + finalChunk,
+            content: hasReceivedContent && next[lastIndex].content !== "Thinking..."
+              ? next[lastIndex].content + finalChunk
+              : finalChunk,
           };
           return next;
         });
