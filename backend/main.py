@@ -6,10 +6,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from limits.errors import StorageError
+from pydantic import BaseModel
 from slowapi.errors import RateLimitExceeded
 from slowapi.extension import _rate_limit_exceeded_handler
 
 from api.ingest import router as ingest_router
+from api.deps import close_checkpointer, delete_all_messages, get_checkpointer
 from api.query import router as query_router
 from api.ratelimit import limiter
 from controllers.vector_store import ensure_indexed
@@ -18,7 +20,11 @@ from controllers.vector_store import ensure_indexed
 @asynccontextmanager
 async def warm_vector_store(app: FastAPI):
     ensure_indexed()
-    yield
+    get_checkpointer()
+    try:
+        yield
+    finally:
+        close_checkpointer()
 
 
 def _get_cors_origins() -> list[str]:
@@ -52,6 +58,15 @@ app.add_middleware(
 )
 app.include_router(ingest_router, prefix="/ingest")
 app.include_router(query_router, prefix="/query")
+
+
+class DeleteRequest(BaseModel):
+    thread_id: str
+
+
+@app.post("/delete")
+def delete_thread(payload: DeleteRequest):
+    delete_all_messages(payload.thread_id)
 
 
 @app.get("/")

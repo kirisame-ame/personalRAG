@@ -23,6 +23,25 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
 
+  postgres:
+    profiles:
+      - dev
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: personalrag
+      POSTGRES_USER: personalrag
+      POSTGRES_PASSWORD: personalrag
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U personalrag -d personalrag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     profiles:
       - dev
@@ -36,6 +55,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      postgres:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     environment:
@@ -45,6 +66,7 @@ services:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - CHROMA_SSL=false
+      - POSTGRES_URI=postgresql://personalrag:personalrag@postgres:5432/personalrag
 
   frontend:
     profiles:
@@ -61,3 +83,4 @@ services:
 volumes:
   chroma-data:
   frontend-node-modules:
+  postgres-data:

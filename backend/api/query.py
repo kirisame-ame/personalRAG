@@ -14,6 +14,7 @@ STREAM_DONE_MARKER = "__RAG_STREAM_DONE__"
 
 class QueryRequest(BaseModel):
     query: str
+    thread_id: str
 
 
 def _text_from_chunk(chunk) -> str:
@@ -29,11 +30,26 @@ def _text_from_chunk(chunk) -> str:
     return ""
 
 
-def stream_answer(query: str) -> Iterator[str]:
+def _message_content(message) -> str:
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return str(content)
+
+
+def stream_answer(query: str, thread_id) -> Iterator[str]:
     try:
         agent = get_agent()
+        config = {"configurable": {"thread_id": thread_id}}
         stream = agent.stream(
             {"messages": [{"role": "user", "content": query}]},
+            config=config,
             stream_mode="messages",
             version="v2",
         )
@@ -56,7 +72,22 @@ def stream_answer(query: str) -> Iterator[str]:
 @limiter.limit(QUERY_RATE_LIMIT)
 def run_query(request: Request, payload: QueryRequest) -> StreamingResponse:
     return StreamingResponse(
-        stream_answer(payload.query),
+        stream_answer(payload.query, thread_id=payload.thread_id),
         media_type="text/plain; charset=utf-8",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+@router.get("/history/{thread_id}")
+def get_history(thread_id: str):
+    state = get_agent().get_state({"configurable": {"thread_id": thread_id}})
+    return {
+        "messages": [
+            {
+                "role": "user" if message.type == "human" else "assistant",
+                "content": _message_content(message),
+            }
+            for message in state.values.get("messages", [])
+            if message.type in {"human", "ai"}
+        ]
+    }

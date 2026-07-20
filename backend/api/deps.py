@@ -1,14 +1,21 @@
 import os
 from functools import lru_cache
+from typing import Any
 
 from dotenv import load_dotenv
-from langchain.agents import create_agent
+from langchain.agents import create_agent, AgentState
 from langchain_openrouter import ChatOpenRouter
+from langgraph.checkpoint.postgres import PostgresSaver
+from langchain.messages import RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from langchain.agents.middleware import Runtime, before_model
 from langchain.tools import tool
 
 from controllers.vector_store import ensure_indexed
 
 load_dotenv()
+
+_checkpointer_context = None
 
 SYSTEM_PROMPT = (
     "You have access to a tool that retrieves context from a number of pdfs related to William Andrian. "
@@ -56,6 +63,49 @@ def get_tools():
     return [_build_retriever_tool()]
 
 
+@before_model
+def trim_messages(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+    """Keep only the last few messages to fit context window."""
+    messages = state["messages"]
+    if len(messages) <= 3:
+        return None
+    first_msg = messages[0]
+    recent_messages = messages[-3:] if len(messages) % 2 == 0 else messages[-4:]
+    new_messages = [first_msg] + recent_messages
+
+    return {"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), *new_messages]}
+
+
+def delete_all_messages(thread):
+    with PostgresSaver.from_conn_string(os.getenv("POSTGRES_URI")) as checkpointer:
+        checkpointer.delete_thread(thread)
+
+
+@lru_cache(maxsize=1)
+def get_checkpointer():
+    global _checkpointer_context
+    checkpointer_context = PostgresSaver.from_conn_string(os.environ["POSTGRES_URI"])
+    _checkpointer_context = checkpointer_context
+    checkpointer = checkpointer_context.__enter__()
+    checkpointer.setup()
+    return checkpointer
+
+
+def close_checkpointer():
+    global _checkpointer_context
+    if _checkpointer_context is not None:
+        _checkpointer_context.__exit__(None, None, None)
+        _checkpointer_context = None
+    get_checkpointer.cache_clear()
+    get_agent.cache_clear()
+
+
 @lru_cache(maxsize=1)
 def get_agent():
-    return create_agent(get_model(), get_tools(), system_prompt=SYSTEM_PROMPT)
+    return create_agent(
+        get_model(),
+        get_tools(),
+        middleware=[trim_messages],
+        system_prompt=SYSTEM_PROMPT,
+        checkpointer=get_checkpointer(),
+    )

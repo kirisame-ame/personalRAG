@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Modal } from "../components/Modal";
@@ -11,9 +11,13 @@ const initialMessages: Message[] = [
 const chatStorageKey = "personal-rag-chat-messages";
 
 export function ChatPage() {
+  const threadId = localStorage.getItem("rag-thread-id") ?? crypto.randomUUID();
+
+  localStorage.setItem("rag-thread-id", threadId);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem(chatStorageKey);
     if (!saved) return initialMessages;
@@ -42,7 +46,30 @@ export function ChatPage() {
     localStorage.setItem(chatStorageKey, JSON.stringify(messages));
   }, [messages]);
 
-  const clearChat = () => {
+  useEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container) return;
+
+    container.scrollTop = container.scrollHeight;
+  }, [messages]);
+
+  const clearChat = async () => {
+    const deleteEndpoint = `${apiBaseUrl.replace(/\/$/, "")}/delete`;
+    try {
+      const response = await fetch(deleteEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thread_id: threadId }),
+      });
+      if (!response.ok) {
+        throw new Error(
+          (await response.text()) || `Request failed (${response.status})`,
+        );
+      }
+    } catch (error) {
+      console.error("Failed to clear server memory:", error);
+      return;
+    }
     localStorage.removeItem(chatStorageKey);
     setMessages(initialMessages);
     setShowClearConfirmation(false);
@@ -53,6 +80,41 @@ export function ChatPage() {
   );
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "/api";
   const apiEndpoint = `${apiBaseUrl.replace(/\/$/, "")}/query`;
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const response = await fetch(
+          `${apiBaseUrl.replace(/\/$/, "")}/query/history/${threadId}`,
+        );
+        if (!response.ok) return;
+
+        const data: unknown = await response.json();
+        const rawMessages =
+          data && typeof data === "object" && "messages" in data
+            ? (data as { messages: unknown }).messages
+            : null;
+        if (!Array.isArray(rawMessages)) return;
+
+        const serverMessages = rawMessages.filter(
+          (message): message is Message =>
+            Boolean(
+              message &&
+              typeof message === "object" &&
+              ((message as Message).role === "user" ||
+                (message as Message).role === "assistant") &&
+              typeof (message as Message).content === "string",
+            ),
+        );
+
+        if (serverMessages.length > 0) setMessages(serverMessages);
+      } catch {
+        // Keep localStorage history if the server history is unavailable.
+      }
+    };
+
+    void loadHistory();
+  }, [apiBaseUrl, threadId]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -69,7 +131,7 @@ export function ChatPage() {
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmed }),
+        body: JSON.stringify({ query: trimmed, thread_id: threadId }),
       });
 
       if (!response.ok) {
@@ -117,7 +179,8 @@ export function ChatPage() {
               ...next[lastIndex],
               content: streamFailed
                 ? chunk
-                : hasReceivedContent && next[lastIndex].content !== "Thinking..."
+                : hasReceivedContent &&
+                    next[lastIndex].content !== "Thinking..."
                   ? next[lastIndex].content + chunk
                   : chunk,
             };
@@ -137,9 +200,10 @@ export function ChatPage() {
           const lastIndex = next.length - 1;
           next[lastIndex] = {
             ...next[lastIndex],
-            content: hasReceivedContent && next[lastIndex].content !== "Thinking..."
-              ? next[lastIndex].content + finalChunk
-              : finalChunk,
+            content:
+              hasReceivedContent && next[lastIndex].content !== "Thinking..."
+                ? next[lastIndex].content + finalChunk
+                : finalChunk,
           };
           return next;
         });
@@ -203,10 +267,13 @@ export function ChatPage() {
         onCancel={() => setShowClearConfirmation(false)}
       >
         <p className="m-0">
-          This will remove your saved conversation from this browser.
+          This will remove your saved conversation from all browsers.
         </p>
       </Modal>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8">
+      <div
+        ref={chatScrollRef}
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-8"
+      >
         {messages.map((message, index) => (
           <div
             key={`${message.role}-${index}`}
@@ -221,7 +288,19 @@ export function ChatPage() {
               className={`max-w-full min-w-0 text-[15px] leading-[1.6] break-words ${message.role === "user" ? "font-mono text-[13px]" : ""}`}
             >
               {message.role === "assistant" ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: (props) => (
+                      <a
+                        {...props}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#ed542c] underline decoration-1 underline-offset-2 transition-opacity hover:opacity-70"
+                      />
+                    ),
+                  }}
+                >
                   {message.content}
                 </ReactMarkdown>
               ) : (
