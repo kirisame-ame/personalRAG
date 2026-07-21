@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from controllers.config import DATA_DIR
@@ -12,6 +12,7 @@ from controllers.vector_store import (
     hash_bytes,
     list_sources,
 )
+from api.admin import require_admin
 
 router = APIRouter( tags=["ingest"])
 
@@ -45,7 +46,9 @@ class ListSourcesResponse(BaseModel):
 
 
 @router.post("/", response_model=IngestResponse)
-async def ingest(files: list[UploadFile] = File(...)) -> IngestResponse:
+async def ingest(
+    files: list[UploadFile] = File(...), _: None = Depends(require_admin)
+) -> IngestResponse:
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
 
@@ -102,7 +105,9 @@ async def ingest(files: list[UploadFile] = File(...)) -> IngestResponse:
 
 
 @router.delete("/{file_hash}", response_model=DeleteResponse)
-def delete_ingested(file_hash: str, remove_file: bool = False) -> DeleteResponse:
+def delete_ingested(
+    file_hash: str, remove_file: bool = False, _: None = Depends(require_admin)
+) -> DeleteResponse:
     chunks_deleted = delete_by_hash(file_hash, remove_files=remove_file)
     if chunks_deleted == 0:
         raise HTTPException(status_code=404, detail="Hash not found")
@@ -111,7 +116,7 @@ def delete_ingested(file_hash: str, remove_file: bool = False) -> DeleteResponse
 
 @router.delete("/source/{source_file}", response_model=DeleteBySourceResponse)
 def delete_by_source_file(
-    source_file: str, remove_file: bool = False
+    source_file: str, remove_file: bool = False, _: None = Depends(require_admin)
 ) -> DeleteBySourceResponse:
     chunks_deleted = delete_by_source(source_file, remove_files=remove_file)
     if chunks_deleted == 0:
@@ -122,5 +127,5 @@ def delete_by_source_file(
 
 
 @router.get("/files", response_model=ListSourcesResponse)
-def list_ingested_sources() -> ListSourcesResponse:
+def list_ingested_sources(_: None = Depends(require_admin)) -> ListSourcesResponse:
     return ListSourcesResponse(items=list_sources())

@@ -17,6 +17,10 @@ services:
       CHROMA_PORT: "8000"
       CHROMA_SSL: "false"
       POSTGRES_URI: postgresql://personalrag:personalrag@postgres:5432/personalrag
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-true}
     depends_on:
       chromadb:
         condition: service_healthy

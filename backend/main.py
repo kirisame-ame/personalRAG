@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.extension import _rate_limit_exceeded_handler
 
 from api.ingest import router as ingest_router
+from api.admin import router as admin_router
 from api.deps import close_checkpointer, delete_all_messages, get_checkpointer
 from api.query import router as query_router
 from api.ratelimit import limiter
@@ -57,6 +58,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(ingest_router, prefix="/ingest")
+app.include_router(admin_router)
 app.include_router(query_router, prefix="/query")
 
 
